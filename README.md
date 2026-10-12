@@ -1,77 +1,65 @@
 # Pseudo Driver AI (Flutter)
 
-Mobile-only driver drowsiness detection prototype inspired by [DrishtiDrive AI](https://github.com/swapnil3104/Portable-AI-Based-Drowsiness-Detection-and-Alert-System-for-Indian-Truck-Drivers).
+A mobile-only driver alert prototype inspired by [DrishtiDrive AI](https://github.com/swapnil3104/Portable-AI-Based-Drowsiness-Detection-and-Alert-System-for-Indian-Truck-Drivers). This repository is focused on Android-first phone-only use; it does not require Raspberry Pi hardware, a vehicle ECU, or a cloud backend for the camera analysis path.
 
-## Product scope
-- Flutter app for Android first, with iOS considered where background/camera/audio constraints allow.
-- Front-facing camera preview while a trip is actively monitored.
-- On-device face/eye landmark inference planned; temporal logic should distinguish natural blinks from sustained eye closure and other fatigue signals.
-- Escalating alerts: subtle prompt, loud repeating ringtone/vibration, then spoken driver-name warning.
-- Configurable driver name, alert mode, sensitivity and sound test.
-- Privacy-first: process frames on device; do not store or upload camera frames by default.
+## Implemented in the current prototype
 
-## Current implementation status
-This repository starts with product architecture and implementation notes. A production-ready on-device model, Android/iOS camera lifecycle, and background execution behavior must be integrated and tested on real devices before this can be used for driving.
+- Flutter dashboard with driver name and alert preferences saved locally.
+- Front-camera preview and image-stream processing.
+- Google ML Kit face detection with eye-open probability classification where supported.
+- Initial temporal eye-closure heuristic (provisional thresholds, not a validated fatigue model).
+- Personalized text-to-speech warnings, vibration, and an optional looping audio asset.
+- Visible warning/status panel and manual alert test button.
+- Camera use stops when the app leaves the foreground.
 
-## Suggested architecture
-- Flutter UI and app state: Material 3.
-- Camera: `camera` package; keep monitoring session visible and foregrounded.
-- On-device inference: MediaPipe Face Landmarker / face mesh via a maintained Flutter plugin or a small native platform channel; alternatively convert a validated model to TFLite/ONNX Mobile where supported.
-- Detection pipeline: face presence and quality checks → eye openness / prolonged closure and optional yawn/head-pose features → time-window smoothing → alert state machine.
-- Alerts: `flutter_tts` for personalized spoken alert, `audioplayers` for a bundled alarm tone, `vibration` for haptic escalation, `shared_preferences` for local configuration.
-- No server required for core monitoring.
+## Important limitations
 
-## Alert policy (initial values to validate)
-1. **Attention**: show live status; no alarm.
-2. **Warning**: suspected sustained eye closure triggers a short tone and voice: “{driver name}, please stay alert.”
-3. **Critical**: persistent/repeated drowsiness triggers looping alarm, vibration and repeated spoken warning: “{driver name}, you may be drowsy. Please pull over safely and rest.”
-4. **Recovery**: stop escalating only after the face/eyes indicate recovery for a configurable clear interval; provide a manual “I have stopped safely” action.
-   
-Thresholds are provisional and must be calibrated with real-world data. This is not an automotive-certified safety system and must not be treated as a substitute for sleep, breaks, or safe driving.
+**This is not a production-ready or automotive-certified safety system. Do not rely on it while driving.** The eye-open probability is only a heuristic; it can be missing or inaccurate due to sunglasses, darkness, glare, face angle, camera quality, skin/eye appearance, or device-specific image formats. Prolonged eye closure is not, by itself, a validated drowsiness diagnosis. Thresholds need controlled evaluation and calibration.
 
-## Suggested app structure
-```
-lib/
-  main.dart
-  app/
-    app.dart
-    theme.dart
-  features/
-    onboarding/
-    driver_profile/
-    monitoring/
-      camera_preview.dart
-      drowsiness_detector.dart
-      detection_state.dart
-      alert_coordinator.dart
-    settings/
-  shared/
-    services/
-      speech_alert_service.dart
-      alarm_service.dart
-      preferences_service.dart
-assets/
-  audio/
-    alarm_loop.mp3
-```
+The camera stream-to-ML-Kit image metadata is device/plugin dependent. The current implementation has not been built or tested on physical Android/iOS devices in this environment. Verify it with the exact target phones before any field evaluation.
 
-## Milestones
-1. Build driver profile, settings and monitor UI.
-2. Add camera permissions, front camera lifecycle, no-frame-persistence policy.
-3. Integrate and benchmark face/eye landmark model on target Android phones.
-4. Implement temporal detection and staged alert state machine.
-5. Add voice/ringtone/vibration alerting and interruption/recovery handling.
-6. Validate in parked vehicles, day/night lighting, glasses, camera positions, phone overheating and battery tests.
-7. Safety review and field evaluation before any real driving use.
+## Technology
 
-## Local development
-Install Flutter stable and Android Studio. Once a Flutter scaffold is added:
-```bash
-flutter pub get
-flutter analyze
-flutter test
-flutter run
-``
+- Flutter / Dart
+- `camera` for foreground camera streaming
+- `google_mlkit_face_detection` for face detection and eye-open probability classification
+- `flutter_tts` for spoken alerts
+- `audioplayers` for ringtone-style audio
+- `vibration` for haptic escalation
+- `shared_preferences` for local driver settings
 
-## Safety notice
-This is an experimental driver-assistance prototype. A phone camera can be occluded, poorly positioned, or unable to detect eye state under sunglasses/low light. The app can miss drowsiness or produce false alarms. Drivers must stop at a safe location whenever sleepy and must not interact with the phone while driving.
+No camera frames are intentionally stored or sent to a server by this app.
+
+## Build and run
+
+1. Install the current stable Flutter SDK and Android Studio.
+2. Clone this repository.
+3. Add a properly licensed alarm sound at `assets/audio/alarm.wav` (see `assets/audio/README.md`). If omitted, ringtone playback is unavailable; spoken/visual alerts may still work.
+4. Run:
+
+   ```bash
+   flutter pub get
+   flutter analyze
+   flutter test
+   flutter run
+   ```
+
+5. Grant camera permission when prompted and test the camera preview and alert button while parked.
+
+The iOS project needs the usual Flutter-generated Xcode project files and must be built on macOS. Camera image formats and ML Kit support should be validated independently for iOS before claiming platform support.
+
+## Alert logic (experimental)
+
+- Eye-open probability below 0.28 starts a provisional closure timer.
+- At around 0.9 seconds, a warning may be triggered.
+- At around 1.8 seconds, a critical voice/alarm warning may be triggered.
+- The alert clears after the eyes appear open continuously for about 1.2 seconds.
+
+These are engineering starting points only, not medically or automotive validated thresholds. Tune only against a labeled evaluation dataset and assess false negatives as well as false positives. Do not use this as a reason to continue driving while sleepy.
+
+## Safety guidance
+
+- Set up the phone securely before the trip; do not interact with it while moving.
+- If sleepy, pull over at a safe place and rest. An alert cannot make drowsy driving safe.
+- Keep the monitoring app in the foreground; background camera use is intentionally not implemented.
+- Conduct controlled tests while parked, then formal evaluation with consent and safety supervision before considering any road use.
