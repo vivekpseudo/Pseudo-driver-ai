@@ -12,6 +12,12 @@ A mobile-only driver alert prototype inspired by [DrishtiDrive AI](https://githu
 - Visible warning/status panel and manual alert test button.
 - Camera use stops when the app leaves the foreground.
 
+## Latest implementation additions
+
+- Extracted temporal eye-closure evaluation into `lib/features/monitoring/drowsiness_evaluator.dart` so its timing behavior can be unit-tested independently of the camera.
+- Added `test/drowsiness_evaluator_test.dart` for short-blink handling, warning/critical escalation, recovery timing, and reset behavior.
+- Added GitHub Actions workflow at `.github/workflows/flutter-ci.yml` to run `flutter pub get`, `flutter analyze`, and `flutter test` on pushes and pull requests. The workflow result must be checked after GitHub runs it; it has not been executed locally in this coding session.
+
 ## Important limitations
 
 **This is not a production-ready or automotive-certified safety system. Do not rely on it while driving.** The eye-open probability is only a heuristic; it can be missing or inaccurate due to sunglasses, darkness, glare, face angle, camera quality, skin/eye appearance, or device-specific image formats. Prolonged eye closure is not, by itself, a validated drowsiness diagnosis. Thresholds need controlled evaluation and calibration.
