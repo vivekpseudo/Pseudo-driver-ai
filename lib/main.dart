@@ -41,7 +41,9 @@ class _DriverHomePageState extends State<DriverHomePage> with WidgetsBindingObse
   String _status = 'Monitoring is off';
   String _detail = 'Set up your profile, then start monitoring while parked.';
   AlertLevel _level = AlertLevel.normal;
-  DateTime? _eyesClosedSince, _lastAlertAt, _eyesOpenSince;
+  DateTime? _lastAlertAt;
+  final _drowsinessEvaluator = DrowsinessEvaluator();
+  DrowsinessStage _lastDetectedStage = DrowsinessStage.attentive;
   int _missingFaceFrames = 0;
   String get _driverName => _nameController.text.trim().isEmpty ? 'Driver' : _nameController.text.trim();
 
@@ -126,25 +128,25 @@ class _DriverHomePageState extends State<DriverHomePage> with WidgetsBindingObse
       final left = face.leftEyeOpenProbability, right = face.rightEyeOpenProbability;
       if (left == null || right == null) { _setStatus('Checking eye visibility', 'Eye-state confidence is unavailable; make sure eyes are visible.'); return; }
       final eyeOpen = (left + right) / 2;
-      final now = DateTime.now();
-      if (eyeOpen < 0.28) {
-        _eyesOpenSince = null;
-        _eyesClosedSince ??= now;
-        final closedFor = now.difference(_eyesClosedSince!).inMilliseconds;
-        if (closedFor >= 1800) {
+      final snapshot = _drowsinessEvaluator.update(eyeOpen, DateTime.now());
+      if (snapshot.stage != _lastDetectedStage) {
+        _lastDetectedStage = snapshot.stage;
+        if (snapshot.stage == DrowsinessStage.critical) {
           await _triggerAlert(AlertLevel.critical);
-        } else if (closedFor >= 900) {
+        } else if (snapshot.stage == DrowsinessStage.warning) {
           await _triggerAlert(AlertLevel.warning);
+        } else if (snapshot.stage == DrowsinessStage.attentive) {
+          if (_level != AlertLevel.normal) {
+            await _clearAlert();
+          } else {
+            _setStatus('Eyes appear open', 'No prolonged eye closure detected in current frames.');
+          }
         } else {
           _setStatus('Possible eye closure', 'Checking whether this is a blink or prolonged closure.');
         }
-      } else {
-        _eyesClosedSince = null;
-        _eyesOpenSince ??= now;
-        if (now.difference(_eyesOpenSince!).inMilliseconds >= 1200) {
-          if (_level != AlertLevel.normal) await _clearAlert();
-          else _setStatus('Eyes appear open', 'No prolonged eye closure detected in current frames.');
-        }
+      } else if (snapshot.stage == DrowsinessStage.critical) {
+        // Repeat a critical alarm at a controlled interval if closure persists.
+        await _triggerAlert(AlertLevel.critical);
       }
     } catch (e) {
       _setStatus('Detection error', 'Camera analysis failed. Stop monitoring and restart if safe. $e');
