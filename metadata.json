@@ -1,0 +1,7 @@
+{
+  "name": "Pseudo Driver AI",
+  "description": "On-device driver drowsiness detection and personalized alert system.",
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

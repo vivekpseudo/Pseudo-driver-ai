@@ -1,0 +1,31 @@
+@import "tailwindcss";
+
+:root {
+  --primary: #126B55;
+  --primary-dark: #123D34;
+  --bg-main: #F4F7F6;
+}
+
+body {
+  margin: 0;
+  background-color: var(--bg-main);
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom animation for alert pulsing */
+@keyframes alert-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1.02);
+  }
+}
+
+.animate-alert-pulse {
+  animation: alert-pulse 1.2s infinite ease-in-out;
+}

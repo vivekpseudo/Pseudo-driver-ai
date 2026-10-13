@@ -1,0 +1,8 @@
+node_modules
+dist
+.dev.pid
+tsconfig.tsbuildinfo
+*.log
+.DS_Store
+bun.lock*
+dev-dist/
