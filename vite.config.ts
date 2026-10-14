@@ -16,6 +16,7 @@ export default defineConfig({
         'pwa-192x192.png',
         'pwa-512x512.png',
         'models/face_landmarker.task',
+        'models/efficientdet_lite0.tflite',
         'wasm/vision_wasm_internal.wasm',
         'wasm/vision_wasm_internal.js',
       ],
@@ -51,7 +52,7 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,wasm,task}'],
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,wasm,task,tflite}'],
         maximumFileSizeToCacheInBytes: 25 * 1024 * 1024, // Allow caching 13MB WASM and 3.6MB model
         runtimeCaching: [
           {

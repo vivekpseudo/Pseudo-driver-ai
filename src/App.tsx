@@ -11,10 +11,12 @@ import {
   RefreshCw,
   ExternalLink,
   Sparkles,
+  ShieldAlert,
 } from 'lucide-react';
 import { StatusCard, AlertLevel } from './components/StatusCard';
 import { PreferenceTile } from './components/PreferenceTile';
 import { CameraView } from './components/CameraView';
+import { CollisionPage } from './components/CollisionPage';
 import {
   DrowsinessEvaluator,
   DrowsinessStage,
@@ -30,6 +32,9 @@ import { PWAInstallButton } from './components/PWAInstallButton';
 import { OfflineIndicator } from './components/OfflineIndicator';
 
 export const App: React.FC = () => {
+  // Navigation tab state
+  const [currentTab, setCurrentTab] = useState<'drowsiness' | 'collision'>('drowsiness');
+
   // Settings & profile state
   const [driverName, setDriverName] = useState<string>('');
   const [voiceAlerts, setVoiceAlerts] = useState<boolean>(true);
@@ -463,7 +468,7 @@ export const App: React.FC = () => {
 
         <div className="flex items-center gap-2">
           <PWAInstallButton />
-          {monitoring && (
+          {monitoring && currentTab === 'drowsiness' && (
             <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-[#126B55] border border-emerald-300">
               <span className="w-2 h-2 rounded-full bg-[#126B55] animate-ping" />
               Tracking Active
@@ -472,9 +477,43 @@ export const App: React.FC = () => {
         </div>
       </header>
 
+      {/* Mode Navigation Tabs */}
+      <nav className="w-full max-w-md px-4 pt-1 pb-3">
+        <div className="grid grid-cols-2 p-1 bg-slate-200/80 rounded-2xl border border-slate-300/60 shadow-inner">
+          <button
+            type="button"
+            onClick={() => setCurrentTab('drowsiness')}
+            className={`py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+              currentTab === 'drowsiness'
+                ? 'bg-white text-slate-900 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Eye className="w-4 h-4 text-[#126B55]" />
+            Drowsiness Alert
+          </button>
+          <button
+            type="button"
+            onClick={() => setCurrentTab('collision')}
+            className={`py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+              currentTab === 'collision'
+                ? 'bg-white text-slate-900 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <ShieldAlert className="w-4 h-4 text-rose-600" />
+            Collision Detection
+          </button>
+        </div>
+      </nav>
+
       {/* Main Container */}
       <main className="w-full max-w-md px-4 pb-8 flex flex-col gap-4">
-        {/* Banner Card */}
+        {currentTab === 'collision' ? (
+          <CollisionPage driverName={effectiveDriverName} />
+        ) : (
+          <>
+            {/* Banner Card */}
         <section className="bg-[#123D34] rounded-[24px] p-6 text-white shadow-md relative overflow-hidden">
           <div className="flex flex-col items-start">
             <Truck className="w-8 h-8 text-white mb-3" />
@@ -673,6 +712,8 @@ export const App: React.FC = () => {
             stop safely and rest if sleepy.
           </p>
         </footer>
+          </>
+        )}
       </main>
 
       {/* Offline Connectivity Banner */}
