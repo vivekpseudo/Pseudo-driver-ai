@@ -1,6 +1,5 @@
 import React, { useEffect, useRef } from 'react';
 import {
-  AlertTriangle,
   Car,
   Truck,
   User,
@@ -9,6 +8,8 @@ import {
   Radio,
   Sparkles,
   RefreshCw,
+  SwitchCamera,
+  Compass,
 } from 'lucide-react';
 import { CollisionFrameResult } from '../features/collision/objectDetector';
 
@@ -17,6 +18,10 @@ interface CollisionViewProps {
   stream: MediaStream | null;
   error?: string | null;
   isSimulator: boolean;
+  facingMode: 'environment' | 'user';
+  onToggleCameraFacing: () => void;
+  showGuide: boolean;
+  onToggleGuide: () => void;
   onSwitchToSimulator: () => void;
   onRetryHardwareDashcam: () => void;
   result: CollisionFrameResult | null;
@@ -31,6 +36,10 @@ export const CollisionView: React.FC<CollisionViewProps> = ({
   stream,
   error,
   isSimulator,
+  facingMode,
+  onToggleCameraFacing,
+  showGuide,
+  onToggleGuide,
   onSwitchToSimulator,
   onRetryHardwareDashcam,
   result,
@@ -40,6 +49,7 @@ export const CollisionView: React.FC<CollisionViewProps> = ({
   onToggleRadarSound,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const isFront = facingMode === 'user' && !isSimulator;
 
   // Attach media stream to video
   useEffect(() => {
@@ -58,7 +68,7 @@ export const CollisionView: React.FC<CollisionViewProps> = ({
     }
   }, [stream, videoRef]);
 
-  // Render bounding boxes, distance tags, and collision crosshairs
+  // Render bounding boxes, distance tags, and optional ADAS alignment guide
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -69,101 +79,173 @@ export const CollisionView: React.FC<CollisionViewProps> = ({
     const h = canvas.height;
     ctx.clearRect(0, 0, w, h);
 
-    if (!result || !result.objects || result.objects.length === 0) {
-      // Draw idle horizon guide
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(w * 0.35, h * 0.48);
-      ctx.lineTo(w * 0.65, h * 0.48);
-      ctx.stroke();
-      return;
-    }
-
-    // Draw detected vehicles and distance indicators
-    for (const obj of result.objects) {
-      const bb = obj.boundingBox;
-      const x = bb.x * w;
-      const y = bb.y * h;
-      const bw = bb.width * w;
-      const bh = bb.height * h;
-
-      const isCritical = obj.riskLevel === 'critical';
-      const isWarning = obj.riskLevel === 'warning';
-
-      const strokeColor = isCritical ? '#ef4444' : isWarning ? '#f59e0b' : '#10b981';
-      const bgBadge = isCritical
-        ? 'rgba(239, 68, 68, 0.9)'
-        : isWarning
-        ? 'rgba(245, 158, 11, 0.9)'
-        : 'rgba(16, 185, 129, 0.85)';
-
-      // 1. Bounding box corners (modern automotive HUD style)
+    // 1. Draw Visual ADAS Alignment & Mounting Guide if enabled
+    if (showGuide) {
       ctx.save();
-      ctx.strokeStyle = strokeColor;
-      ctx.lineWidth = isCritical ? 3.5 : 2.5;
+      const horizonY = h * 0.48;
 
-      const cornerLen = Math.min(18, bw * 0.25);
-      // Top-left
+      // Horizon line
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.7)';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([8, 6]);
       ctx.beginPath();
-      ctx.moveTo(x, y + cornerLen);
-      ctx.lineTo(x, y);
-      ctx.lineTo(x + cornerLen, y);
+      ctx.moveTo(0, horizonY);
+      ctx.lineTo(w, horizonY);
       ctx.stroke();
 
-      // Top-right
-      ctx.beginPath();
-      ctx.moveTo(x + bw - cornerLen, y);
-      ctx.lineTo(x + bw, y);
-      ctx.lineTo(x + bw, y + cornerLen);
-      ctx.stroke();
-
-      // Bottom-left
-      ctx.beginPath();
-      ctx.moveTo(x, y + bh - cornerLen);
-      ctx.lineTo(x, y + bh);
-      ctx.lineTo(x + cornerLen, y + bh);
-      ctx.stroke();
-
-      // Bottom-right
-      ctx.beginPath();
-      ctx.moveTo(x + bw - cornerLen, y + bh);
-      ctx.lineTo(x + bw, y + bh);
-      ctx.lineTo(x + bw, y + bh - cornerLen);
-      ctx.stroke();
-
-      // Subtle translucent box fill
-      ctx.fillStyle = isCritical ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.05)';
-      ctx.fillRect(x, y, bw, bh);
-
-      // 2. Distance and Risk Tag
-      const ttcText = obj.ttcSeconds ? ` · TTC: ${obj.ttcSeconds}s` : '';
-      const tagText = `${obj.displayName} · ${obj.distanceMeters.toFixed(1)}m${ttcText}`;
-
-      ctx.font = 'bold 12px monospace';
-      const textWidth = ctx.measureText(tagText).width;
-      const tagH = 22;
-      const tagX = Math.max(4, Math.min(w - textWidth - 14, x));
-      const tagY = Math.max(tagH + 4, y - 6);
-
-      ctx.fillStyle = bgBadge;
-      ctx.beginPath();
-      ctx.roundRect(tagX - 4, tagY - tagH + 4, textWidth + 12, tagH, 5);
-      ctx.fill();
-
+      // Horizon Tag
+      ctx.fillStyle = 'rgba(14, 165, 233, 0.85)';
+      ctx.font = 'bold 11px monospace';
+      ctx.fillRect(w / 2 - 95, horizonY - 18, 190, 16);
       ctx.fillStyle = '#ffffff';
-      ctx.fillText(tagText, tagX + 2, tagY - 2);
+      ctx.fillText('HORIZON LINE (ALIGN WITH ROAD)', w / 2 - 90, horizonY - 6);
 
-      // Warning marker if critical
-      if (isCritical) {
-        ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 11px sans-serif';
-        ctx.fillText('⚠️ BRAKE', x + bw / 2 - 24, y + bh + 16);
-      }
+      // Center Aim Crosshair
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.moveTo(w / 2 - 14, horizonY);
+      ctx.lineTo(w / 2 + 14, horizonY);
+      ctx.moveTo(w / 2, horizonY - 14);
+      ctx.lineTo(w / 2, horizonY + 14);
+      ctx.stroke();
+
+      // Lane Trajectory Projection Lines
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.35)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      // Left lane guideline
+      ctx.moveTo(w * 0.15, h);
+      ctx.lineTo(w * 0.44, horizonY);
+      // Right lane guideline
+      ctx.moveTo(w * 0.85, h);
+      ctx.lineTo(w * 0.56, horizonY);
+      ctx.stroke();
+
+      // Distance calibration markers
+      const drawDistMarker = (yPos: number, meters: number, color: string) => {
+        const leftX = w * 0.15 + (w * 0.44 - w * 0.15) * ((h - yPos) / (h - horizonY));
+        const rightX = w * 0.85 - (w * 0.85 - w * 0.56) * ((h - yPos) / (h - horizonY));
+
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(leftX, yPos);
+        ctx.lineTo(rightX, yPos);
+        ctx.stroke();
+
+        ctx.fillStyle = color;
+        ctx.font = 'bold 10px monospace';
+        ctx.fillText(`${meters}m`, rightX + 6, yPos + 3);
+      };
+
+      // 30m marker (Green)
+      drawDistMarker(h * 0.53, 30, 'rgba(52, 211, 153, 0.7)');
+      // 20m marker (Green)
+      drawDistMarker(h * 0.62, 20, 'rgba(52, 211, 153, 0.7)');
+      // 10m marker (Amber / Caution)
+      drawDistMarker(h * 0.74, 10, 'rgba(251, 191, 36, 0.8)');
+      // 5m marker (Red / Critical Zone)
+      drawDistMarker(h * 0.87, 5, 'rgba(248, 113, 113, 0.85)');
+
+      // Bottom vehicle hood reference line
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 6]);
+      ctx.beginPath();
+      ctx.moveTo(w * 0.1, h * 0.95);
+      ctx.lineTo(w * 0.9, h * 0.95);
+      ctx.stroke();
+
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+      ctx.fillRect(w / 2 - 80, h * 0.95 - 15, 160, 15);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 10px sans-serif';
+      ctx.fillText('ALIGN VEHICLE HOOD HERE', w / 2 - 70, h * 0.95 - 4);
 
       ctx.restore();
     }
-  }, [result]);
+
+    // 2. Draw Detected Objects and Real-time Distance Tags
+    if (result && result.objects && result.objects.length > 0) {
+      for (const obj of result.objects) {
+        const bb = obj.boundingBox;
+
+        // Coordinate handling: if front camera is mirrored, flip X
+        const boxX = isFront ? (1 - (bb.x + bb.width)) * w : bb.x * w;
+        const boxY = bb.y * h;
+        const bw = bb.width * w;
+        const bh = bb.height * h;
+
+        const isCritical = obj.riskLevel === 'critical';
+        const isWarning = obj.riskLevel === 'warning';
+
+        const strokeColor = isCritical ? '#ef4444' : isWarning ? '#f59e0b' : '#10b981';
+        const bgBadge = isCritical
+          ? 'rgba(239, 68, 68, 0.9)'
+          : isWarning
+          ? 'rgba(245, 158, 11, 0.9)'
+          : 'rgba(16, 185, 129, 0.85)';
+
+        ctx.save();
+        ctx.strokeStyle = strokeColor;
+        ctx.lineWidth = isCritical ? 3.5 : 2.5;
+
+        // Modern HUD corner brackets
+        const cornerLen = Math.min(18, bw * 0.25);
+        ctx.beginPath();
+        // Top-left
+        ctx.moveTo(boxX, boxY + cornerLen);
+        ctx.lineTo(boxX, boxY);
+        ctx.lineTo(boxX + cornerLen, boxY);
+        // Top-right
+        ctx.moveTo(boxX + bw - cornerLen, boxY);
+        ctx.lineTo(boxX + bw, boxY);
+        ctx.lineTo(boxX + bw, boxY + cornerLen);
+        // Bottom-left
+        ctx.moveTo(boxX, boxY + bh - cornerLen);
+        ctx.lineTo(boxX, boxY + bh);
+        ctx.lineTo(boxX + cornerLen, boxY + bh);
+        // Bottom-right
+        ctx.moveTo(boxX + bw - cornerLen, boxY + bh);
+        ctx.lineTo(boxX + bw, boxY + bh);
+        ctx.lineTo(boxX + bw, boxY + bh - cornerLen);
+        ctx.stroke();
+
+        // Subtle box fill
+        ctx.fillStyle = isCritical ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.05)';
+        ctx.fillRect(boxX, boxY, bw, bh);
+
+        // Distance Tag
+        const ttcText = obj.ttcSeconds ? ` · TTC: ${obj.ttcSeconds}s` : '';
+        const tagText = `${obj.displayName} · ${obj.distanceMeters.toFixed(1)}m${ttcText}`;
+
+        ctx.font = 'bold 12px monospace';
+        const textWidth = ctx.measureText(tagText).width;
+        const tagH = 22;
+        const tagX = Math.max(4, Math.min(w - textWidth - 14, boxX));
+        const tagY = Math.max(tagH + 4, boxY - 6);
+
+        ctx.fillStyle = bgBadge;
+        ctx.beginPath();
+        ctx.roundRect(tagX - 4, tagY - tagH + 4, textWidth + 12, tagH, 5);
+        ctx.fill();
+
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(tagText, tagX + 2, tagY - 2);
+
+        if (isCritical) {
+          ctx.fillStyle = '#ffffff';
+          ctx.font = 'bold 11px sans-serif';
+          ctx.fillText('⚠️ BRAKE', boxX + bw / 2 - 24, boxY + bh + 16);
+        }
+
+        ctx.restore();
+      }
+    }
+  }, [result, showGuide, isFront]);
 
   const closest = result?.closestObject || null;
   const isEmergency = result?.overallRisk === 'critical';
@@ -181,7 +263,7 @@ export const CollisionView: React.FC<CollisionViewProps> = ({
 
       {error && !stream ? (
         <div className="p-8 text-center text-slate-300 flex flex-col items-center justify-center min-h-[260px]">
-          <AlertTriangle className="w-12 h-12 text-amber-400 mb-3" />
+          <ShieldAlert className="w-12 h-12 text-amber-400 mb-3" />
           <p className="font-bold text-white text-base">Forward Dashcam Unavailable</p>
           <p className="text-xs text-slate-300 mt-1 max-w-xs leading-relaxed">
             {error}
@@ -213,7 +295,7 @@ export const CollisionView: React.FC<CollisionViewProps> = ({
             playsInline
             muted
             autoPlay
-            className="w-full h-full object-cover"
+            className={`w-full h-full object-cover ${isFront ? 'transform -scale-x-100' : ''}`}
           />
 
           {/* Canvas overlays */}
@@ -228,13 +310,18 @@ export const CollisionView: React.FC<CollisionViewProps> = ({
           <div className="absolute top-3 left-3 right-3 flex items-center justify-between pointer-events-none z-10">
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-black/70 text-white backdrop-blur-xs border border-white/10">
               <span className={`w-2 h-2 rounded-full ${isEmergency ? 'bg-rose-500 animate-ping' : isWarning ? 'bg-amber-400' : 'bg-emerald-400'}`} />
-              {isSimulator ? 'Road Simulator (Dashcam)' : 'Forward Road Camera'}
+              {isSimulator
+                ? 'Road Simulator'
+                : facingMode === 'environment'
+                ? 'Back Camera (Road)'
+                : 'Front Camera'}
             </span>
 
-            {/* FPS and detected count */}
-            <span className="px-2.5 py-1 rounded-full text-xs font-mono font-medium bg-black/70 text-slate-300 border border-white/10 backdrop-blur-xs">
-              {result?.objects.length || 0} Objects · {result?.fps || 0} FPS
-            </span>
+            <div className="flex items-center gap-1.5">
+              <span className="px-2.5 py-1 rounded-full text-xs font-mono font-medium bg-black/70 text-slate-300 border border-white/10 backdrop-blur-xs">
+                {result?.objects.length || 0} Objects · {result?.fps || 0} FPS
+              </span>
+            </div>
           </div>
 
           {/* Mini Proximity Radar & Distance Gauge Widget */}
@@ -267,17 +354,48 @@ export const CollisionView: React.FC<CollisionViewProps> = ({
             </div>
           </div>
 
-          {/* Bottom Controls Strip */}
-          <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between z-20 gap-2">
+          {/* Alignment guide toggle button (top right) */}
+          <div className="absolute top-12 right-3 z-20">
             <button
               type="button"
-              onClick={isSimulator ? onRetryHardwareDashcam : onSwitchToSimulator}
-              className="px-2.5 py-1.5 rounded-xl text-[11px] font-bold bg-black/70 hover:bg-black/90 text-slate-200 border border-white/20 backdrop-blur-xs transition-all cursor-pointer"
+              onClick={onToggleGuide}
+              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold border backdrop-blur-xs transition-all cursor-pointer shadow-sm ${
+                showGuide
+                  ? 'bg-sky-950/80 text-sky-300 border-sky-400/50'
+                  : 'bg-black/70 text-slate-400 border-white/15 hover:text-white'
+              }`}
+              title="Toggle HUD mounting and horizon alignment guide"
             >
-              {isSimulator ? 'Switch to Real Dashcam' : 'Switch to Simulator'}
+              <Compass className="w-3 h-3" />
+              {showGuide ? 'Guide On' : 'Guide Off'}
             </button>
+          </div>
 
-            <div className="flex items-center gap-2">
+          {/* Bottom Controls Strip */}
+          <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between z-20 gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5">
+              {!isSimulator && (
+                <button
+                  type="button"
+                  onClick={onToggleCameraFacing}
+                  className="px-2.5 py-1.5 rounded-xl text-[11px] font-bold bg-black/75 hover:bg-black/90 text-white border border-white/20 backdrop-blur-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
+                  title="Switch between front and back camera"
+                >
+                  <SwitchCamera className="w-3.5 h-3.5 text-emerald-400" />
+                  Flip to {facingMode === 'environment' ? 'Front' : 'Back'}
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={isSimulator ? onRetryHardwareDashcam : onSwitchToSimulator}
+                className="px-2.5 py-1.5 rounded-xl text-[11px] font-medium bg-black/70 hover:bg-black/90 text-slate-200 border border-white/15 backdrop-blur-xs transition-all cursor-pointer"
+              >
+                {isSimulator ? 'Real Camera' : 'Simulator'}
+              </button>
+            </div>
+
+            <div className="flex items-center gap-1.5">
               <button
                 type="button"
                 onClick={onToggleRadarSound}
@@ -287,7 +405,7 @@ export const CollisionView: React.FC<CollisionViewProps> = ({
                     : 'bg-black/70 text-slate-400 border-white/15'
                 }`}
               >
-                {radarSoundEnabled ? '🔊 Radar On' : '🔇 Muted'}
+                {radarSoundEnabled ? '🔊 Radar' : '🔇 Muted'}
               </button>
 
               {isSimulator && (
@@ -301,7 +419,7 @@ export const CollisionView: React.FC<CollisionViewProps> = ({
                   }`}
                   title="Simulate vehicle ahead braking hard to test collision alert"
                 >
-                  {simulatedBraking ? '⚠️ Approaching Vehicle!' : 'Simulate Approach'}
+                  {simulatedBraking ? '⚠️ Approaching!' : 'Simulate Approach'}
                 </button>
               )}
             </div>

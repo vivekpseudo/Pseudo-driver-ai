@@ -7,6 +7,9 @@ import {
   Gauge,
   Info,
   Radio,
+  SwitchCamera,
+  Compass,
+  CheckCircle2,
 } from 'lucide-react';
 import { CollisionView } from './CollisionView';
 import {
@@ -26,6 +29,12 @@ export const CollisionPage: React.FC<CollisionPageProps> = ({ driverName }) => {
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [isSimulator, setIsSimulator] = useState<boolean>(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
+
+  // Camera facing mode: default to 'environment' (back camera for forward road view)
+  const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
+
+  // Alignment guide toggle
+  const [showGuide, setShowGuide] = useState<boolean>(true);
 
   // Radar sound toggle
   const [radarSoundEnabled, setRadarSoundEnabled] = useState<boolean>(true);
@@ -97,67 +106,95 @@ export const CollisionPage: React.FC<CollisionPageProps> = ({ driverName }) => {
     };
   }, [active, processFrame]);
 
-  // Start Hardware Dashcam (rear camera)
-  const startHardwareDashcam = useCallback(async () => {
-    setCameraError(null);
-    if (stream) {
-      stream.getTracks().forEach((t) => t.stop());
-    }
-    if (roadSimRef.current) {
-      roadSimRef.current.stop();
-      roadSimRef.current = null;
-    }
+  // Start Hardware Dashcam with specific facing mode
+  const startHardwareDashcam = useCallback(
+    async (targetFacing: 'environment' | 'user' = facingMode) => {
+      setCameraError(null);
+      if (stream) {
+        stream.getTracks().forEach((t) => t.stop());
+      }
+      if (roadSimRef.current) {
+        roadSimRef.current.stop();
+        roadSimRef.current = null;
+      }
 
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      const msg = 'Camera API is not supported in this browser context. Switching to road simulator.';
-      setCameraError(msg);
-      startRoadSimulator();
-      return;
-    }
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        const msg = 'Camera API is not supported in this browser context. Switching to road simulator.';
+        setCameraError(msg);
+        startRoadSimulator();
+        return;
+      }
 
-    let mediaStream: MediaStream | null = null;
-    let lastErr: Error | null = null;
+      let mediaStream: MediaStream | null = null;
+      let lastErr: Error | null = null;
 
-    // 1. Try back/environment camera for forward road view
-    try {
-      mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: 'environment' },
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-        },
-        audio: false,
-      });
-    } catch (e: unknown) {
-      lastErr = e instanceof Error ? e : new Error(String(e));
-    }
-
-    // 2. Fallback to any camera
-    if (!mediaStream) {
+      // 1. Try specified facing camera with ideal 720p/1080p dimensions
       try {
         mediaStream = await navigator.mediaDevices.getUserMedia({
-          video: true,
+          video: {
+            facingMode: { ideal: targetFacing },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
           audio: false,
         });
       } catch (e: unknown) {
         lastErr = e instanceof Error ? e : new Error(String(e));
       }
-    }
 
-    if (mediaStream) {
-      setStream(mediaStream);
-      setIsSimulator(false);
-      setCameraError(null);
-      setActive(true);
-    } else {
-      const errText =
-        lastErr?.name === 'NotAllowedError'
-          ? 'Dashcam permission denied. Switched to road simulator.'
-          : 'No forward camera detected. Switched to road simulator.';
-      setCameraError(errText);
-      startRoadSimulator();
+      // 2. Fallback without ideal dimensions
+      if (!mediaStream) {
+        try {
+          mediaStream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              facingMode: targetFacing,
+            },
+            audio: false,
+          });
+        } catch (e: unknown) {
+          lastErr = e instanceof Error ? e : new Error(String(e));
+        }
+      }
+
+      // 3. Fallback to any camera available
+      if (!mediaStream) {
+        try {
+          mediaStream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: false,
+          });
+        } catch (e: unknown) {
+          lastErr = e instanceof Error ? e : new Error(String(e));
+        }
+      }
+
+      if (mediaStream) {
+        setStream(mediaStream);
+        setIsSimulator(false);
+        setFacingMode(targetFacing);
+        setCameraError(null);
+        setActive(true);
+      } else {
+        const errText =
+          lastErr?.name === 'NotAllowedError'
+            ? 'Camera permission denied. Switched to road simulator.'
+            : 'No physical camera detected. Switched to road simulator.';
+        setCameraError(errText);
+        startRoadSimulator();
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [facingMode, stream]
+  );
+
+  // Switch between front and back camera
+  const toggleCameraFacing = useCallback(() => {
+    const nextFacing = facingMode === 'environment' ? 'user' : 'environment';
+    setFacingMode(nextFacing);
+    if (active && !isSimulator) {
+      startHardwareDashcam(nextFacing);
     }
-  }, [stream]);
+  }, [facingMode, active, isSimulator, startHardwareDashcam]);
 
   // Start Road Simulator
   const startRoadSimulator = useCallback(() => {
@@ -224,7 +261,11 @@ export const CollisionPage: React.FC<CollisionPageProps> = ({ driverName }) => {
       >
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3">
-            <div className={`p-2.5 rounded-2xl ${isEmergency ? 'bg-rose-500 text-white animate-bounce' : 'bg-white/10 text-emerald-300'}`}>
+            <div
+              className={`p-2.5 rounded-2xl ${
+                isEmergency ? 'bg-rose-500 text-white animate-bounce' : 'bg-white/10 text-emerald-300'
+              }`}
+            >
               <ShieldAlert className="w-6 h-6" />
             </div>
             <div>
@@ -240,7 +281,7 @@ export const CollisionPage: React.FC<CollisionPageProps> = ({ driverName }) => {
                   ? `Imminent crash risk at ${closest?.distanceMeters.toFixed(1)}m. Brake immediately!`
                   : isWarning
                   ? `Maintain safe following distance (${closest?.distanceMeters.toFixed(1)}m).`
-                  : 'Real-time monocular distance & forward vehicle tracking.'}
+                  : 'Real device camera with distance calculation and visual guide.'}
               </p>
             </div>
           </div>
@@ -253,7 +294,11 @@ export const CollisionPage: React.FC<CollisionPageProps> = ({ driverName }) => {
               <Radio className="w-3.5 h-3.5 text-emerald-400" />
               Lead Vehicle Gap:
             </span>
-            <span className={`font-black text-sm ${isEmergency ? 'text-rose-300' : isWarning ? 'text-amber-300' : 'text-emerald-300'}`}>
+            <span
+              className={`font-black text-sm ${
+                isEmergency ? 'text-rose-300' : isWarning ? 'text-amber-300' : 'text-emerald-300'
+              }`}
+            >
               {closest ? `${closest.distanceMeters.toFixed(1)} meters` : 'Road Clear (> 40m)'}
             </span>
           </div>
@@ -281,8 +326,12 @@ export const CollisionPage: React.FC<CollisionPageProps> = ({ driverName }) => {
           stream={stream}
           error={cameraError}
           isSimulator={isSimulator}
+          facingMode={facingMode}
+          onToggleCameraFacing={toggleCameraFacing}
+          showGuide={showGuide}
+          onToggleGuide={() => setShowGuide((prev) => !prev)}
           onSwitchToSimulator={startRoadSimulator}
-          onRetryHardwareDashcam={startHardwareDashcam}
+          onRetryHardwareDashcam={() => startHardwareDashcam(facingMode)}
           result={frameResult}
           simulatedBraking={simulatedBraking}
           onToggleSimulatedBraking={toggleSimulatedBraking}
@@ -291,11 +340,11 @@ export const CollisionPage: React.FC<CollisionPageProps> = ({ driverName }) => {
         />
       )}
 
-      {/* Main Start / Stop Button */}
+      {/* Main Start / Stop Button & Camera Switcher Bar */}
       <section className="flex flex-col gap-2.5">
         <button
           type="button"
-          onClick={active ? stopMonitoring : startHardwareDashcam}
+          onClick={active ? stopMonitoring : () => startHardwareDashcam(facingMode)}
           className={`w-full min-h-[56px] rounded-2xl font-bold text-base flex items-center justify-center gap-2.5 shadow-sm transition-all duration-200 cursor-pointer ${
             active
               ? 'bg-rose-700 hover:bg-rose-800 text-white active:scale-[0.99]'
@@ -310,10 +359,35 @@ export const CollisionPage: React.FC<CollisionPageProps> = ({ driverName }) => {
           ) : (
             <>
               <PlayCircle className="w-5 h-5" />
-              Start Forward Collision Detection
+              Start Device Camera Detection ({facingMode === 'environment' ? 'Back / Road' : 'Front'})
             </>
           )}
         </button>
+
+        {/* Camera selection & Calibration guide controls */}
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={toggleCameraFacing}
+            className="py-2.5 px-3 rounded-xl font-bold text-xs bg-white hover:bg-slate-50 text-slate-700 border border-slate-300/80 flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+          >
+            <SwitchCamera className="w-4 h-4 text-[#126B55]" />
+            Flip: {facingMode === 'environment' ? 'Back (Road)' : 'Front Camera'}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowGuide((prev) => !prev)}
+            className={`py-2.5 px-3 rounded-xl font-bold text-xs border flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-2xs ${
+              showGuide
+                ? 'bg-sky-50 text-sky-800 border-sky-300'
+                : 'bg-white text-slate-700 border-slate-300/80'
+            }`}
+          >
+            <Compass className="w-4 h-4 text-sky-600" />
+            Alignment Guide: {showGuide ? 'Shown' : 'Hidden'}
+          </button>
+        </div>
 
         {!active && (
           <button
@@ -322,9 +396,43 @@ export const CollisionPage: React.FC<CollisionPageProps> = ({ driverName }) => {
             className="w-full py-2.5 rounded-xl font-semibold text-xs text-[#126B55] bg-emerald-50 hover:bg-emerald-100/70 border border-emerald-200 flex items-center justify-center gap-1.5 transition-all cursor-pointer"
           >
             <Gauge className="w-3.5 h-3.5" />
-            Launch Road Traffic Simulator (Demo / Highway Testing)
+            Or Launch Road Traffic Simulator (Demo / Highway Testing)
           </button>
         )}
+      </section>
+
+      {/* ADAS Windshield Mounting & Alignment Guide Card */}
+      <section className="bg-sky-50/70 rounded-2xl p-4 border border-sky-200/80 text-xs text-sky-950">
+        <div className="flex items-center gap-2 mb-2 font-bold text-sky-900 text-sm">
+          <Compass className="w-4 h-4 text-sky-600" />
+          <span>Dashcam Mounting & Visual Alignment Guide</span>
+        </div>
+        <ul className="space-y-1.5 text-slate-700 pl-1">
+          <li className="flex items-start gap-1.5">
+            <CheckCircle2 className="w-3.5 h-3.5 text-sky-600 shrink-0 mt-0.5" />
+            <span>
+              <strong>Mounting:</strong> Mount phone centered on the windshield or dashboard with clear view of the road.
+            </span>
+          </li>
+          <li className="flex items-start gap-1.5">
+            <CheckCircle2 className="w-3.5 h-3.5 text-sky-600 shrink-0 mt-0.5" />
+            <span>
+              <strong>Horizon Line:</strong> Align the blue dashed HUD line with the distant road horizon.
+            </span>
+          </li>
+          <li className="flex items-start gap-1.5">
+            <CheckCircle2 className="w-3.5 h-3.5 text-sky-600 shrink-0 mt-0.5" />
+            <span>
+              <strong>Camera Choice:</strong> Use <strong>Back Camera</strong> for forward traffic, or <strong>Front Camera</strong> if testing handheld.
+            </span>
+          </li>
+          <li className="flex items-start gap-1.5">
+            <CheckCircle2 className="w-3.5 h-3.5 text-sky-600 shrink-0 mt-0.5" />
+            <span>
+              <strong>Distance Markers:</strong> HUD displays live 5m, 10m, 20m, and 30m following distance gates.
+            </span>
+          </li>
+        </ul>
       </section>
 
       {/* Detected Road Objects Telemetry Table (When active and objects present) */}
