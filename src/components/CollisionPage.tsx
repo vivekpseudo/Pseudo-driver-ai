@@ -359,7 +359,7 @@ export const CollisionPage: React.FC<CollisionPageProps> = ({ driverName }) => {
           ) : (
             <>
               <PlayCircle className="w-5 h-5" />
-              Start Device Camera Detection ({facingMode === 'environment' ? 'Back / Road' : 'Front'})
+              Start Camera Detection ({facingMode === 'environment' ? 'Back / Road' : 'Front'})
             </>
           )}
         </button>

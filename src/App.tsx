@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Eye,
-  Truck,
+  Car,
   User,
   Volume2,
   BellRing,
@@ -460,7 +460,7 @@ export const App: React.FC = () => {
       {/* App Bar */}
       <header className="w-full max-w-md bg-transparent px-5 pt-4 pb-2 flex items-center justify-between">
         <div className="flex items-center gap-2.5 text-[#126B55]">
-          <Eye className="w-6 h-6 stroke-[2.5]" />
+          <Car className="w-6 h-6 stroke-[2.5]" />
           <h1 className="text-xl font-extrabold tracking-tight text-slate-900">
             Pseudo Driver AI
           </h1>
@@ -514,13 +514,10 @@ export const App: React.FC = () => {
         ) : (
           <>
             {/* Banner Card */}
-        <section className="bg-[#123D34] rounded-[24px] p-6 text-white shadow-md relative overflow-hidden">
+        <section className="bg-[#123D34] rounded-[20px] p-3 text-white shadow-md relative overflow-hidden">
           <div className="flex flex-col items-start">
-            <Truck className="w-8 h-8 text-white mb-3" />
             <h2 className="text-2xl font-extrabold leading-[1.12] tracking-tight">
-              Stay alert.
-              <br />
-              Reach home safe.
+              Stay alert - Reach home safe.
             </h2>
             <p className="mt-2 text-sm text-[#D5E9E2] font-normal leading-relaxed">
               On-device face and eye monitoring with continuous tracking and personalized warnings.
@@ -693,14 +690,14 @@ export const App: React.FC = () => {
             )}
           </button>
 
-          <button
+          {/* <button
             type="button"
             onClick={() => triggerAlert('warning')}
             className="w-full min-h-[50px] rounded-2xl font-bold text-sm text-[#126B55] border-2 border-[#126B55]/30 hover:border-[#126B55] hover:bg-[#126B55]/5 flex items-center justify-center gap-2 bg-transparent transition-all duration-200 active:scale-[0.99] cursor-pointer"
           >
             <Volume2 className="w-4 h-4" />
             Test personalized alert
-          </button>
+          </button> */}
         </section>
 
         {/* Safety Disclaimer */}
