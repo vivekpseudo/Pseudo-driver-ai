@@ -53,7 +53,7 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,wasm,task,tflite}'],
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,wav,wasm,task,tflite}'],
         maximumFileSizeToCacheInBytes: 25 * 1024 * 1024, // Allow caching 13MB WASM and 3.6MB model
         runtimeCaching: [
           {

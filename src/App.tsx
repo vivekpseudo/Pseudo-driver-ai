@@ -60,7 +60,7 @@ export const App: React.FC = () => {
   const [openForMs, setOpenForMs] = useState<number>(0);
 
   // Evaluator & tracking references
-  const evaluatorRef = useRef<DrowsinessEvaluator>(new DrowsinessEvaluator({ recoveryAfterMs: 30000 }));
+  const evaluatorRef = useRef<DrowsinessEvaluator>(new DrowsinessEvaluator({ recoveryAfterMs: 10000 }));
   const detectorRef = useRef<WebFaceDetector | null>(null);
   const virtualCameraRef = useRef<VirtualDriverCamera | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -144,7 +144,7 @@ export const App: React.FC = () => {
       setDetail(alertMsg);
 
       if (ringtoneAlerts) {
-        audioAlert.playAlarm(targetLevel === 'critical');
+        audioAlert.playAlarm();
       }
 
       triggerVibration(targetLevel);
@@ -165,7 +165,7 @@ export const App: React.FC = () => {
     }
     setLevel('normal');
     setStatus('Monitoring active');
-    setDetail('Eyes remained open for 30s. Alert stopped. Continuous tracking active.');
+    setDetail('Eyes remained open for 10s. Alert stopped. Continuous tracking active.');
     setClosedForMs(0);
     setOpenForMs(0);
   }, []);
@@ -260,16 +260,16 @@ export const App: React.FC = () => {
           // If an alert is currently active:
           if (level !== 'normal') {
             // Check if user has kept eyes open continuously for 30 seconds (30,000 ms)
-            if (snapshot.openForMs >= 30000 || snapshot.stage === DrowsinessStage.attentive) {
+            if (snapshot.openForMs >= 10000 || snapshot.stage === DrowsinessStage.attentive) {
               clearAlert();
             } else if (snapshot.openForMs > 0) {
-              const remainingSec = Math.max(0, (30000 - snapshot.openForMs) / 1000).toFixed(1);
+              const remainingSec = Math.max(0, (10000 - snapshot.openForMs) / 1000).toFixed(1);
               setStatus('ALERT ACTIVE - Keep eyes open');
               setDetail(`Eyes open for ${(snapshot.openForMs / 1000).toFixed(1)}s. Keep open ${remainingSec}s more to stop alert.`);
             } else if (snapshot.closedForMs > 0) {
               // Eyes closed again during alert
               setStatus(level === 'critical' ? 'DROWSINESS WARNING' : 'Stay alert');
-              setDetail(`${effectiveDriverName}, please open your eyes. Warning will stop after 30s open.`);
+              setDetail(`${effectiveDriverName}, please open your eyes. Warning will stop after 10s open.`);
             }
           } else {
             // Normal monitoring state: evaluate for possible drowsiness
@@ -597,7 +597,7 @@ export const App: React.FC = () => {
           </section>
         )}
 
-        {/* Status Card with 30s recovery indicator */}
+        {/* Status Card with 10s recovery indicator */}
         <StatusCard
           level={level}
           status={status}
@@ -607,7 +607,7 @@ export const App: React.FC = () => {
           }
           closedForMs={closedForMs}
           openForMs={openForMs}
-          recoveryTargetMs={30000}
+          recoveryTargetMs={10000}
         />
 
         {/* Driver Profile Section */}
